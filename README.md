@@ -1,18 +1,46 @@
 # WarLike Online
 
-Réseau social indépendant, déployable sur Cloudflare Pages et utilisant les comptes WarLike Server. Les utilisateurs connectés peuvent publier du texte, une image ou une courte vidéo (10 Mo maximum), consulter le fil, réagir et commenter. WarScope choisit une publication du fil pour la découverte. Le propriétaire ou l'auteur peut retirer une publication.
+Réseau social WarLike indépendant, hébergé sur Cloudflare et relié aux comptes de WarLike Server. Le site est accessible à [warlike-online.pages.dev](https://warlike-online.pages.dev/).
 
-## État et limites
+## Fonctions
 
-- Les publications sont réservées aux utilisateurs connectés. Les médias ne sont pas publics : ils passent par une route authentifiée.
-- La découverte porte sur les 50 publications les plus récentes, sans système de recommandation ni abonnements.
-- Les formats acceptés sont JPEG, PNG, WebP, MP4 et WebM. Il n'y a pas d'encodage vidéo, de direct, de stories ni d'appels.
-- Le retrait est logique : l'enregistrement et le média restent dans le stockage pour l'administration ; une politique de suppression définitive reste à développer.
-- La modération centralisée depuis Tower, la protection anti-abus distribuée, les notifications et les profils enrichis restent à développer.
-- Les messages Mail et Chat restent indépendants. Un test réel avec deux comptes est encore requis.
+- Connexion avec un compte WarLike existant. La session est vérifiée côté serveur à chaque requête ; les comptes pilotes isolés ne permettent plus de se connecter.
+- Fil de publications partagées entre les membres connectés, avec texte, images et vidéos.
+- Mentions J’aime, commentaires et abonnements.
+- Clips vidéo et Périscope pour découvrir des publications récentes. La diffusion vidéo en direct n’est pas encore disponible.
+- Suppression d’une publication et de son média par son auteur ou le propriétaire. La modération depuis WarLike Tower reste à raccorder.
 
-## Déploiement
+Les médias acceptés sont JPEG, PNG, WebP, GIF, MP4 et WebM, avec une limite de 20 Mo par fichier. Ils sont servis aux membres connectés et les requêtes par plage sont prises en charge pour la lecture des vidéos.
 
-Cloudflare Pages doit compiler `functions/`, avec les liaisons `ONLINE_DB` (D1), `MEDIA` (R2) et `WARLIKE_SERVER` (service vers `warlike-server-runtime`). Appliquer `migrations/0001_online.sql` à une base dédiée. Ne pas mettre de mots de passe, jetons ou clés dans le dépôt.
+## Architecture
 
-Vérification locale : `node --test tests/online.test.mjs`. La connexion utilise l'identifiant WarLike ; les comptes temporaires doivent d'abord être personnalisés dans WarLike Server.
+L’interface se trouve dans `public/` et le service applicatif Cloudflare Worker dans `worker/`. Le projet Pages utilise le relais `_worker.js` pour transmettre les requêtes au Worker Online.
+
+- `DB` : base D1 `warlike-online`, pour les publications, réactions, commentaires, abonnements et profils Online.
+- `BUCKET` : stockage R2 `warlike-online-media` pour les médias.
+- `WARLIKE_SERVER` : liaison privée vers le service WarLike Server, qui valide les comptes et les sessions.
+
+Les identifiants saisis sur Online sont transmis à WarLike Server par cette liaison privée ; Online ne stocke pas ces mots de passe. Les comptes temporaires doivent d’abord être personnalisés sur [WarLike Server](https://warlike-server.pages.dev/connexion).
+
+## API
+
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` : connexion WarLike.
+- `GET /api/posts`, `POST /api/posts`, `DELETE /api/posts/:id` : fil et publications.
+- `PUT /api/posts/:id/media`, `GET /media/:id` : ajout et lecture d’un média.
+- `POST /api/posts/:id/like`, `DELETE /api/posts/:id/like` : réactions.
+- `GET /api/posts/:id/comments`, `POST /api/posts/:id/comments` : commentaires.
+- `POST /api/users/:id/follow`, `DELETE /api/users/:id/follow` : abonnements.
+
+## Vérification et limites
+
+Le Worker et son adresse Pages ont été déployés. Un parcours isolé avec deux comptes fictifs a couvert la connexion, une publication, sa réception, les réactions, les commentaires, l’envoi et la lecture d’une image, ainsi que les autorisations de suppression et les requêtes par plage. Les parcours avec les comptes de collaborateurs réels restent à vérifier.
+
+Restent à développer ou renforcer : le direct vidéo et son chat, la modération centralisée depuis Tower, les notifications, les profils enrichis, la pagination, la protection anti-abus et les tests de charge. Les liens vers WarLike Mail et Chat ne constituent pas une messagerie Internet ni une intégration de leurs données dans Online.
+
+Pour exécuter les tests locaux d’authentification :
+
+```sh
+node --test worker/tests/auth.test.mjs
+```
+
+Ne placer aucun mot de passe, jeton ou secret dans le dépôt.

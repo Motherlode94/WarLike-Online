@@ -1,0 +1,24 @@
+name = "warlike-online"
+main = "src/index.js"
+compatibility_date = "2026-11-08"
+
+[assets]
+directory = "../public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/media/*"]
+
+# Replace placeholders with the actual Cloudflare resources.
+[[d1_databases]]
+binding = "DB"
+database_name = "warlike-online"
+database_id = "c50f308a-6d83-4824-bcd6-5398f4c4cbb2"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "warlike-online-media"
+
+
+[[services]]
+binding = "WARLIKE_SERVER"
+service = "warlike-server-runtime"
