@@ -19,5 +19,5 @@ jobs:
           node-version: '24'
       - name: Check authentication and exchange on isolated staging
         env:
-          ONLINE_TEST_URL: https://9e825329.warlike-online-validation.pages.dev
+          ONLINE_TEST_URL: https://147d7555.warlike-online-validation.pages.dev
         run: node tests/integration-http.mjs
