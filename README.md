@@ -16,11 +16,11 @@ Les comptes pilotes restent dans la base, mais leur connexion est désactivée. 
 
 ## Déployer sur Cloudflare
 
-Il faut d'abord créer une base D1 `warlike-online` et un bucket R2 `warlike-online-media`, ou choisir explicitement d'autres ressources. Les bindings sont `DB` et `BUCKET`.
+La base D1 `warlike-online`, le bucket R2 `warlike-online-media` et la liaison de service vers WarLike Server sont configurés. Les bindings sont `DB`, `BUCKET` et `WARLIKE_SERVER`.
 
 Depuis le dossier `worker/` :
 
-1. Remplacer `REPLACE_WITH_D1_DATABASE_ID` dans `wrangler.toml` par l'identifiant D1 réel.
+1. Vérifier l'identifiant D1 dans `wrangler.toml`.
 2. Vérifier le nom du bucket R2.
 3. Appliquer la migration : `npx wrangler d1 migrations apply warlike-online --remote`.
 4. Publier le Worker : `npx wrangler deploy`.
@@ -40,7 +40,7 @@ Le Worker sert le site depuis `public/` et l'API depuis le même domaine, avec l
 
 Vérifier les parcours de connexion et de publication avec deux comptes réels, compléter la récupération de comptes et la limitation anti-abus, améliorer la modération Tower, le contrôle des uploads, les mécanismes de suppression, la pagination et les tests de charge / sécurité. Les comptes pilotes isolés ne sont plus utilisables pour se connecter. Ne pas utiliser une base D1 ou un bucket R2 de WarLike Server sans migration explicitement compatible.
 
-État : **code enregistré dans GitHub ; configuration Cloudflare, migrations, déploiement et tests réels non confirmés.**
+État : **Worker Online et adresse Cloudflare Pages déployés ; D1, R2 et liaison WarLike Server configurés. Un parcours synthétique à deux comptes a été validé dans un environnement isolé. Les comptes et échanges de collaborateurs réels restent à valider.**
 
 
 ## Vérification Cloudflare du 8 novembre 2026
