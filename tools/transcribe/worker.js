@@ -2,7 +2,8 @@
 // No audio or transcript is retained by this application.
 const MODEL='@cf/openai/whisper-large-v3-turbo';
 const LIMIT=8*1024*1024;
-const MAX_CALLS=5;
+const MAX_CALLS=30;
+const MAX_DURATION_SECONDS=25; // Client splitting target; not an asserted media-duration validator.
 function json(obj,status=200){return new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}})}
 const reject=(message,status=400)=>json({error:message},status);
 async function bytesLimited(req){
@@ -35,7 +36,7 @@ async function reserve(env,req){
  const id=Array.from(new Uint8Array(token),x=>x.toString(16).padStart(2,'0')).join('');
  // Atomic per-hour quota. The hashed source is never returned or logged.
  const row=await env.DB.prepare('INSERT INTO limits (id,hour,used) VALUES (?,?,1) ON CONFLICT(id) DO UPDATE SET used=used+1 WHERE used < ? RETURNING used').bind(id,hour,MAX_CALLS).first();
- if(!row)return {error:'Quota atteint : 5 transcriptions par heure pour cette connexion.',status:429};
+ if(!row)return {error:'Quota atteint : 30 segments par heure pour cette connexion.',status:429};
  return {ok:true,remaining:MAX_CALLS-row.used}
 }
 export default {
@@ -50,11 +51,11 @@ export default {
    const data=await bytesLimited(req);
    if(data===null)return reject('Fichier trop volumineux (8 Mo maximum).',413);
    if(!supported(data,type))return reject('Fichier audio vide ou signature non reconnue.',415);
+   const language=(url.searchParams.get('lang')||'').toLowerCase();
+   if(language&&!/^[a-z]{2}$/.test(language))return reject('Code langue invalide',400);
    const rate=await reserve(env,req);if(rate.error)return reject(rate.error,rate.status);
    try{
-     const language=(url.searchParams.get('lang')||'').toLowerCase();
-     if(language&&!/^[a-z]{2}$/.test(language))return reject('Code langue invalide',400);
-     const payload={audio:base64(data),task:'transcribe'};
+     const payload={audio:base64(data),task:'transcribe',vad_filter:true};
      if(language)payload.language=language;
      const out=await env.AI.run(MODEL,payload);
      if(!out||typeof out.text!=='string')return reject('Le moteur n’a pas retourné de transcription.',502);
