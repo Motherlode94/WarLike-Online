@@ -122,6 +122,6 @@ export default {async fetch(req,env){
  const url=new URL(req.url);
  if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/media/'))return env.ASSETS.fetch(req);
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{allow:'GET,POST,PUT,DELETE,OPTIONS'}});
- try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Erreur du serveur',500)}
+ try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Diagnostic test : '+String(err?.message||'erreur').slice(0,200),500)}
 }};
 
