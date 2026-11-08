@@ -12,7 +12,7 @@ assert.equal((await req(`/api/posts/${id}/like`,{method:'POST',cookie:b.cookie})
 assert.equal((await req(`/api/posts/${id}/comments`,{method:'POST',cookie:b.cookie,data:{body:'Réponse de test'}})).r.status,201);
 let comments=await req(`/api/posts/${id}/comments`,{cookie:a.cookie});assert.ok(comments.body.comments.some(x=>x.body==='Réponse de test'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL9sAAAAASUVORK5CYII=','base64'));
-assert.equal((await req(`/api/posts/${id}/media`,{method:'PUT',cookie:a.cookie,bytes:png,type:'image/png'})).r.status,200);
+const upload=await req(`/api/posts/${id}/media`,{method:'PUT',cookie:a.cookie,bytes:png,type:'image/png'});assert.equal(upload.r.status,200,JSON.stringify(upload.body));
 assert.equal((await req(`/media/${id}`)).r.status,401);const media=await req(`/media/${id}`,{cookie:b.cookie});assert.equal(media.r.status,200);assert.equal(media.r.headers.get('content-type'),'image/png');
 assert.equal((await req(`/api/posts`,{method:'POST',cookie:a.cookie,originHeader:'https://example.invalid',data:{body:'bad'}})).r.status,403);
 assert.equal((await req('/api/auth/logout',{method:'POST',cookie:a.cookie})).r.status,200);
