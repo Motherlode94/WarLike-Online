@@ -19,7 +19,7 @@ async function userFromSession(request,env,token=cookie(request)){
  if(!linked){const id=crypto.randomUUID(),username='wl_'+id.replaceAll('-','').slice(0,25),name=String(u.name||'Membre WarLike').slice(0,60);await env.DB.prepare('INSERT INTO online_users(id,username,display_name,password_salt,password_hash) VALUES(?,?,?,?,?)').bind(id,username,name,'disabled','disabled').run();await env.DB.prepare('INSERT OR IGNORE INTO online_identities(provider,subject,user_id) VALUES(?,?,?)').bind('warlike-server',u.id,id).run();linked=await env.DB.prepare('SELECT u.id,u.username,u.display_name FROM online_identities i JOIN online_users u ON u.id=i.user_id WHERE i.provider=? AND i.subject=?').bind('warlike-server',u.id).first();}
  return linked?{...linked,role:u.role}:null;
 }
-const publicUser=u=>({id:u.id,username:u.username,display_name:u.display_name});
+const publicUser=u=>({id:u.id,username:u.username,display_name:u.display_name,role:u.role==='owner'?'owner':'member'});
 async function bodyJSON(request){if(request.headers.get('content-type')?.split(';')[0]!=='application/json')throw Error('JSON requis');const reader=request.body?.getReader();if(!reader)throw Error('JSON requis');let chunks=[],length=0;for(;;){const {value,done}=await reader.read();if(done)break;length+=value.length;if(length>10000){await reader.cancel();throw Error('Requête trop grande')}chunks.push(value)}const bytes=new Uint8Array(length);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.length}return JSON.parse(new TextDecoder().decode(bytes))}
 async function readLimited(request,limit){if(Number(request.headers.get('content-length')||0)>limit)throw Error('Média trop volumineux');const reader=request.body?.getReader();if(!reader)throw Error('Média vide');let chunks=[],size=0;for(;;){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw Error('Média trop volumineux')}chunks.push(value)}const out=new Uint8Array(size);let off=0;for(const c of chunks){out.set(c,off);off+=c.length}return out.buffer}
 function validateText(s,max){return typeof s==='string'&&s.length<=max}
@@ -70,6 +70,14 @@ async function route(req,env){
   const b=await bodyJSON(req);if(!validateText(b.body,2000))return fail('Message invalide');
   const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO online_posts(id,author_id,body) VALUES(?,?,?)').bind(id,user.id,b.body).run();return json({id},201);
  }
+ const deleteMatch=path.match(/^\/api\/posts\/([a-f0-9-]{36})$/);
+ if(deleteMatch&&method==='DELETE'){
+  const post=await env.DB.prepare('SELECT id,author_id,media_key FROM online_posts WHERE id=?').bind(deleteMatch[1]).first();
+  if(!post)return fail('Publication introuvable',404);if(post.author_id!==user.id&&user.role!=='owner')return fail('Accès refusé',403);
+  if(post.media_key)await env.BUCKET.delete(post.media_key);
+  await env.DB.batch([env.DB.prepare('DELETE FROM online_comments WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_likes WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_posts WHERE id=?').bind(post.id)]);
+  return json({ok:true});
+ }
  const mediaMatch=path.match(/^\/api\/posts\/([a-f0-9-]{36})\/media$/);
  if(mediaMatch&&method==='PUT'){
   const post=await env.DB.prepare('SELECT author_id,media_key FROM online_posts WHERE id=?').bind(mediaMatch[1]).first();
@@ -91,8 +99,10 @@ async function route(req,env){
  if(publicMedia&&method==='GET'){
   const p=await env.DB.prepare('SELECT media_key,media_type FROM online_posts WHERE id=?').bind(publicMedia[1]).first();
   if(!p?.media_key)return fail('Média introuvable',404);
-  const object=await env.BUCKET.get(p.media_key);if(!object)return fail('Média introuvable',404);
-  return new Response(object.body,{headers:{'content-type':p.media_type,'content-disposition':'inline','cache-control':'private, max-age=120','x-content-type-options':'nosniff'}});
+  const object=await env.BUCKET.get(p.media_key,{range:req.headers});if(!object)return fail('Média introuvable',404);
+  const headers={'content-type':p.media_type,'content-disposition':'inline','cache-control':'private, no-store','x-content-type-options':'nosniff','accept-ranges':'bytes'};let status=200;
+  if(req.headers.has('range')&&object.range&&typeof object.size==='number'){const offset=typeof object.range.offset==='number'?object.range.offset:Math.max(0,object.size-(object.range.suffix||0)),length=typeof object.range.length==='number'?object.range.length:object.size-offset;if(length>0){headers['content-range']=`bytes ${offset}-${offset+length-1}/${object.size}`;headers['content-length']=String(length);status=206}}
+  return new Response(object.body,{status,headers});
  }
  const like=path.match(/^\/api\/posts\/([a-f0-9-]{36})\/like$/);
  if(like&&method==='POST'){
@@ -124,4 +134,5 @@ export default {async fetch(req,env){
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{allow:'GET,POST,PUT,DELETE,OPTIONS'}});
  try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Erreur du serveur',500)}
 }};
+
 
