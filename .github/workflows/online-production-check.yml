@@ -1,0 +1,26 @@
+name: Check Online production
+on:
+  push:
+    branches: [codex/online-shared-auth]
+    paths: [.github/workflows/online-production-check.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Verify health and rejected fake credentials
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin='https://warlike-online.pages.dev';
+          const health=await fetch(origin+'/api/health');assert.equal(health.status,200);
+          const anon=await fetch(origin+'/api/posts');assert.equal(anon.status,401);
+          const bad=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({username:'validation-inexistant-online',password:'faux-mot-de-passe'})});
+          assert.equal(bad.status,401,'Le service doit joindre WarLike Server et refuser les identifiants invalides.');
+          console.log('PASS: santé, accès anonyme refusé et liaison de connexion active.');
+          NODE

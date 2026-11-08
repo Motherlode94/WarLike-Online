@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 const base=process.env.ONLINE_TEST_URL;if(!base)throw Error('ONLINE_TEST_URL is required');const origin=new URL(base).origin;
-async function req(path,{method='GET',data,cookie,bytes,type,originHeader=origin}={}){let headers={};if(method!=='GET')headers.origin=originHeader;if(cookie)headers.cookie=cookie;if(data!==undefined)headers['content-type']='application/json';if(bytes)headers['content-type']=type;let r=await fetch(origin+path,{method,headers,body:bytes||(data!==undefined?JSON.stringify(data):undefined),redirect:'manual'});let content=r.headers.get('content-type')||'';let body=content.includes('application/json')?await r.json():await r.arrayBuffer();return {r,body,cookie:r.headers.get('set-cookie')?.split(';')[0]};}
+async function req(path,{method='GET',data,cookie,bytes,type,range,originHeader=origin}={}){let headers={};if(method!=='GET')headers.origin=originHeader;if(cookie)headers.cookie=cookie;if(data!==undefined)headers['content-type']='application/json';if(bytes)headers['content-type']=type;if(range)headers.range=range;let r=await fetch(origin+path,{method,headers,body:bytes||(data!==undefined?JSON.stringify(data):undefined),redirect:'manual'});let content=r.headers.get('content-type')||'';let body=content.includes('application/json')?await r.json():await r.arrayBuffer();return {r,body,cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 assert.equal((await req('/api/health')).r.status,200);
 assert.equal((await req('/api/posts')).r.status,401);
 assert.equal((await req('/api/auth/register',{method:'POST',data:{}})).r.status,403);
@@ -14,6 +14,10 @@ let comments=await req(`/api/posts/${id}/comments`,{cookie:a.cookie});assert.ok(
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL9sAAAAASUVORK5CYII=','base64'));
 const upload=await req(`/api/posts/${id}/media`,{method:'PUT',cookie:a.cookie,bytes:png,type:'image/png'});assert.equal(upload.r.status,200,JSON.stringify(upload.body));
 assert.equal((await req(`/media/${id}`)).r.status,401);const media=await req(`/media/${id}`,{cookie:b.cookie});assert.equal(media.r.status,200);assert.equal(media.r.headers.get('content-type'),'image/png');
+const ranged=await req(`/media/${id}`,{cookie:b.cookie,range:'bytes=0-7'});assert.equal(ranged.r.status,206);assert.match(ranged.r.headers.get('content-range'),/^bytes 0-7\//);
+assert.equal((await req(`/api/posts/${id}`,{method:'DELETE',cookie:b.cookie})).r.status,403);
+assert.equal((await req(`/api/posts/${id}`,{method:'DELETE',cookie:a.cookie})).r.status,200);
+assert.equal((await req(`/media/${id}`,{cookie:b.cookie})).r.status,404);
 assert.equal((await req(`/api/posts`,{method:'POST',cookie:a.cookie,originHeader:'https://example.invalid',data:{body:'bad'}})).r.status,403);
 assert.equal((await req('/api/auth/logout',{method:'POST',cookie:a.cookie})).r.status,200);
 console.log('PASS: comptes distincts, publication, réception, réaction, commentaire, média privé et origine.');
