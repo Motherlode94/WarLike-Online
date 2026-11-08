@@ -18,11 +18,44 @@ async function bodyJSON(request){if(Number(request.headers.get('content-length')
 function validUsername(s){return typeof s==='string'&&/^[a-zA-Z0-9_]{3,25}$/.test(s)}
 function validateText(s,max){return typeof s==='string'&&s.length<=max}
 const headers={'x-content-type-options':'nosniff','referrer-policy':'no-referrer'};
+
+async function verifyWarLikeAssertion(assertion,secret){
+ if(!secret||typeof assertion!=='string'||assertion.length>4096)return null;
+ const parts=assertion.split('.');if(parts.length!==2)return null;
+ const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);
+ const decode=x=>Uint8Array.from(atob(x.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-x.length%4)%4)),c=>c.charCodeAt(0));
+ let payload,signature;
+ try{payload=JSON.parse(new TextDecoder().decode(decode(parts[0])));signature=decode(parts[1])}catch{return null}
+ if(!await crypto.subtle.verify('HMAC',key,signature,encoder.encode(parts[0])))return null;
+ const now=Math.floor(Date.now()/1000);
+ if(payload.iss!=='warlike-server'||payload.aud!=='warlike-online'||typeof payload.sub!=='string'||payload.sub.length<1||payload.sub.length>150||typeof payload.nonce!=='string'||!/^[-_a-zA-Z0-9]{16,120}$/.test(payload.nonce)||!Number.isInteger(payload.iat)||!Number.isInteger(payload.exp)||payload.exp<now||payload.iat>now+30||payload.exp-payload.iat>120||now-payload.iat>120)return null;
+ return payload;
+}
+
 async function route(req,env){
  const url=new URL(req.url), path=url.pathname, method=req.method;
  if(!env.DB||!env.BUCKET)return fail('Bindings DB et BUCKET manquants',503);
  if(!['GET','HEAD','OPTIONS'].includes(method)){const origin=req.headers.get('origin');if(origin!==url.origin)return fail('Origine non autorisée',403)}
  if(path==='/api/health'&&method==='GET')return json({ok:true,service:'warlike-online'});
+
+ if(path==='/api/auth/warlike'&&method==='POST'){
+  if(!env.WARLIKE_SSO_SECRET)return fail('Connexion WarLike centrale non configurée',503);
+  const b=await bodyJSON(req),p=await verifyWarLikeAssertion(b.assertion,env.WARLIKE_SSO_SECRET);
+  if(!p)return fail('Preuve d’identité WarLike invalide',401);
+  const nonceHash=await digest(p.iss+':'+p.nonce);
+  try{await env.DB.prepare('INSERT INTO online_assertion_nonces(nonce_hash,expires_at) VALUES(?,?)').bind(nonceHash,p.exp).run()}catch{return fail('Preuve déjà utilisée',409)}
+  let linked=await env.DB.prepare('SELECT u.id,u.username,u.display_name FROM online_identities i JOIN online_users u ON u.id=i.user_id WHERE i.provider=? AND i.subject=?').bind('warlike-server',p.sub).first();
+  if(!linked){
+   const id=crypto.randomUUID(),username='wl_'+(await digest(p.sub)).slice(0,20),display=typeof p.name==='string'&&p.name.trim()?p.name.trim().slice(0,60):'Membre WarLike';
+   const salt=b64(bytes(24)),password_hash=await passwordHash(hex(bytes(32)),salt);
+   await env.DB.prepare('INSERT OR IGNORE INTO online_users(id,username,display_name,password_salt,password_hash) VALUES(?,?,?,?,?)').bind(id,username,display,salt,password_hash).run();
+   const u=await env.DB.prepare('SELECT id,username,display_name FROM online_users WHERE username=?').bind(username).first();
+   await env.DB.prepare('INSERT OR IGNORE INTO online_identities(provider,subject,user_id) VALUES(?,?,?)').bind('warlike-server',p.sub,u.id).run();
+   linked=await env.DB.prepare('SELECT u.id,u.username,u.display_name FROM online_identities i JOIN online_users u ON u.id=i.user_id WHERE i.provider=? AND i.subject=?').bind('warlike-server',p.sub).first();
+  }
+  return establish(req,env,linked);
+ }
+
  if(path==='/api/auth/register'&&method==='POST'){
   const b=await bodyJSON(req);
   if(!validUsername(b.username)||typeof b.display_name!=='string'||b.display_name.trim().length<2||b.display_name.length>60||typeof b.password!=='string'||b.password.length<12||b.password.length>128)return fail('Identifiant, nom ou mot de passe invalide (12 caractères minimum)');
