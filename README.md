@@ -1,18 +1,41 @@
-# WarLike Online
+# WarLike Online — backend Cloudflare
 
-Application sociale indépendante : fil de publications, photos et vidéos, commentaires, mentions J'aime, profil modifiable et espace WarLike Périscope.
+Réseau social WarLike indépendant de Base44, avec frontend dans `public/` et backend Cloudflare Worker dans `worker/`.
 
-## État
-La première version fonctionne **localement dans le navigateur**. Les métadonnées sont enregistrées dans localStorage et les médias dans IndexedDB. Les comptes, médias et interactions **ne sont pas partagés entre appareils ou utilisateurs**. Le streaming Périscope n'est pas encore fonctionnel.
+## Fonctionnalités implémentées dans le code
 
-## Hébergement
-Déployable sur Cloudflare Pages à partir de ce dépôt : framework **None**, commande de build vide, répertoire de sortie **/**, fichier d'entrée `index.html`.
+- Création de comptes pilotes, connexion et déconnexion par cookie de session HttpOnly.
+- Mots de passe hachés PBKDF2 et sessions persistantes (hachage des jetons en D1).
+- Publications, lecture du fil, commentaires, mentions J'aime et abonnements en D1.
+- Photos et vidéos autorisées (PNG, JPEG, WebP, GIF, MP4, WebM) stockées dans R2, limite de 20 Mo ; vérification de signature simple.
+- Flux de clips et interface Périscope ; **aucune diffusion live réelle à ce stade**.
 
-## Étapes suivantes
-- WarLike Keys : authentification et sessions
-- WarLike Server : API, stockage R2 des médias et base D1 des publications et relations
-- WarLike Tower : modération, signalements, contrôle d'accès
-- WarLike LIVE : streaming en direct, chat temps réel et replay
-- Tests fonctionnels et sécurité avant une mise en production multiutilisateur
+**Important :** l'authentification pilote est isolée. Elle ne représente pas encore l'identité commune WarLike Keys / WarLike Server (qui utilise déjà une connexion signée spécifique). Ne pas confondre ces comptes de test avec des comptes WarLike existants.
 
-Aucune dépendance à Base44 n'est nécessaire pour cette version.
+## Déployer sur Cloudflare
+
+Il faut d'abord créer une base D1 `warlike-online` et un bucket R2 `warlike-online-media`, ou choisir explicitement d'autres ressources. Les bindings sont `DB` et `BUCKET`.
+
+Depuis le dossier `worker/` :
+
+1. Remplacer `REPLACE_WITH_D1_DATABASE_ID` dans `wrangler.toml` par l'identifiant D1 réel.
+2. Vérifier le nom du bucket R2.
+3. Appliquer la migration : `npx wrangler d1 migrations apply warlike-online --remote`.
+4. Publier le Worker : `npx wrangler deploy`.
+
+Le Worker sert le site depuis `public/` et l'API depuis le même domaine, avec les endpoints `/api/*` et `/media/*`. La version statique à la racine (`index.html`) reste une première démonstration locale ; **la version multiutilisateur doit être publiée via le Worker**.
+
+### Routes
+
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `GET /api/posts`, `POST /api/posts`, `PUT /api/posts/:id/media`
+- `POST /api/posts/:id/like`, `DELETE /api/posts/:id/like`
+- `GET /api/posts/:id/comments`, `POST /api/posts/:id/comments`
+- `POST /api/users/:id/follow`, `DELETE /api/users/:id/follow`
+- `GET /media/:id` pour les utilisateurs connectés
+
+### Avant toute ouverture publique
+
+Intégrer l'identité centrale WarLike Keys en utilisant une vérification de session fiable côté serveur, ajouter une récupération de comptes et une limitation anti-bruteforce, améliorer la modération Tower, le contrôle des uploads, les mécanismes de suppression, la pagination et les tests de charge / sécurité. Les mots de passe pilotes ne sont pas fédérés. Ne pas utiliser une base D1 ou un bucket R2 de WarLike Server sans migration explicitement compatible.
+
+État : **code enregistré dans GitHub ; configuration Cloudflare, migrations, déploiement et tests réels non confirmés.**
