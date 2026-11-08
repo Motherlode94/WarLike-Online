@@ -68,3 +68,7 @@ Signature : HMAC-SHA256 sur le texte encodé `payload-base64url`, encodée ensui
 **Il reste à créer côté WarLike Server une route authentifiée qui génère l'assertion uniquement après vérification effective de la session/du rôle du membre**, à stocker le secret commun dans les secrets Cloudflare de chaque service, puis à fournir la redirection de connexion côté Online. Aucun mot de passe WarLike Server ne doit être transmis au navigateur Online. Ne pas employer une simple identité non signée.
 
 Ce protocole d'assertion est conservé mais désactivé : la connexion commune actuelle repose sur la liaison privée à WarLike Server.
+
+## Découverte et modération
+
+Le Périscope propose une publication parmi les créations récentes. Le direct vidéo reste à développer. L'auteur ou le propriétaire peut supprimer une publication ; son média et les interactions associées sont retirés. Les vidéos acceptent les requêtes par plage pour améliorer la lecture. La modération depuis Tower reste à raccorder.
