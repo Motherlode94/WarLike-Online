@@ -1,16 +1,18 @@
 # WarLike Online — backend Cloudflare
 
+> **Connexion WarLike :** cette version utilise la session WarLike Server vérifiée côté serveur à chaque requête. Les identifiants sont transmis par le client Online au service WarLike Server via une liaison Cloudflare privée, sans stockage dans Online. Les sessions et comptes pilotes locaux ne permettent plus de se connecter. L'ancien mécanisme d'assertion reste conservé dans le code, désactivé tant qu'il n'est pas intégré.
+
 Réseau social WarLike indépendant de Base44, avec frontend dans `public/` et backend Cloudflare Worker dans `worker/`.
 
 ## Fonctionnalités implémentées dans le code
 
-- Création de comptes pilotes, connexion et déconnexion par cookie de session HttpOnly.
+- Connexion et déconnexion avec le compte WarLike et un cookie de session HttpOnly.
 - Mots de passe hachés PBKDF2 et sessions persistantes (hachage des jetons en D1).
 - Publications, lecture du fil, commentaires, mentions J'aime et abonnements en D1.
 - Photos et vidéos autorisées (PNG, JPEG, WebP, GIF, MP4, WebM) stockées dans R2, limite de 20 Mo ; vérification de signature simple.
 - Flux de clips et interface Périscope ; **aucune diffusion live réelle à ce stade**.
 
-**Important :** l'authentification pilote est isolée. Elle ne représente pas encore l'identité commune WarLike Keys / WarLike Server (qui utilise déjà une connexion signée spécifique). Ne pas confondre ces comptes de test avec des comptes WarLike existants.
+Les comptes pilotes restent dans la base, mais leur connexion est désactivée. Les profils associés au compte central utilisent le mapping existant `online_identities`.
 
 ## Déployer sur Cloudflare
 
@@ -27,7 +29,7 @@ Le Worker sert le site depuis `public/` et l'API depuis le même domaine, avec l
 
 ### Routes
 
-- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` : compte WarLike central.
 - `GET /api/posts`, `POST /api/posts`, `PUT /api/posts/:id/media`
 - `POST /api/posts/:id/like`, `DELETE /api/posts/:id/like`
 - `GET /api/posts/:id/comments`, `POST /api/posts/:id/comments`
@@ -36,7 +38,7 @@ Le Worker sert le site depuis `public/` et l'API depuis le même domaine, avec l
 
 ### Avant toute ouverture publique
 
-Intégrer l'identité centrale WarLike Keys en utilisant une vérification de session fiable côté serveur, ajouter une récupération de comptes et une limitation anti-bruteforce, améliorer la modération Tower, le contrôle des uploads, les mécanismes de suppression, la pagination et les tests de charge / sécurité. Les mots de passe pilotes ne sont pas fédérés. Ne pas utiliser une base D1 ou un bucket R2 de WarLike Server sans migration explicitement compatible.
+Vérifier les parcours de connexion et de publication avec deux comptes réels, compléter la récupération de comptes et la limitation anti-abus, améliorer la modération Tower, le contrôle des uploads, les mécanismes de suppression, la pagination et les tests de charge / sécurité. Les comptes pilotes isolés ne sont plus utilisables pour se connecter. Ne pas utiliser une base D1 ou un bucket R2 de WarLike Server sans migration explicitement compatible.
 
 État : **code enregistré dans GitHub ; configuration Cloudflare, migrations, déploiement et tests réels non confirmés.**
 
@@ -65,4 +67,4 @@ Signature : HMAC-SHA256 sur le texte encodé `payload-base64url`, encodée ensui
 
 **Il reste à créer côté WarLike Server une route authentifiée qui génère l'assertion uniquement après vérification effective de la session/du rôle du membre**, à stocker le secret commun dans les secrets Cloudflare de chaque service, puis à fournir la redirection de connexion côté Online. Aucun mot de passe WarLike Server ne doit être transmis au navigateur Online. Ne pas employer une simple identité non signée.
 
-Ce protocole est préparé dans le code, **mais la connexion commune n'est pas encore opérationnelle**.
+Ce protocole d'assertion est conservé mais désactivé : la connexion commune actuelle repose sur la liaison privée à WarLike Server.

@@ -17,3 +17,8 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "warlike-online-media"
+
+
+[[services]]
+binding = "WARLIKE_SERVER"
+service = "warlike-server-runtime"
