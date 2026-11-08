@@ -1,7 +1,7 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),content=$('#content');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let user=null,posts=[],view='feed',mode='login';
+let user=null,posts=[],view='feed',mode='login',scopeId=null;
 async function api(path,{method='GET',data,blob}={}){
  const r=await fetch(path,{method,credentials:'same-origin',headers:blob?{'content-type':blob.type}:data?{'content-type':'application/json'}:{},body:blob|| (data?JSON.stringify(data):undefined)});
  let obj=null;try{obj=await r.json()}catch{}
@@ -22,7 +22,7 @@ async function render(){document.querySelectorAll('[data-view]').forEach(b=>b.cl
 if(!user){authForm();return}
 if(view==='feed'){content.innerHTML=heading('Réseau social en ligne','Le fil <em>vivant</em>','Les dernières publications des membres WarLike.')+(posts.length?posts.map(card).join(''):'<div class="empty">Aucune publication. Soyez le premier à partager quelque chose !</div>')}
 else if(view==='reels'){const videos=posts.filter(p=>p.media_type?.startsWith('video/'));content.innerHTML=heading('Vidéos','WarLike <em>Clips</em>','Regardez les vidéos partagées.')+(videos.length?'<div class="reels">'+videos.map(p=>'<article class="reel"><video playsinline controls preload="metadata" src="'+esc(p.media_url)+'"></video><strong>'+esc(name(p))+'</strong><p>'+esc(p.body)+'</p></article>').join('')+'</div>':'<div class="empty">Pas de clips pour le moment.</div>')}
-else if(view==='periscope'){content.innerHTML=heading('Découverte','WarLike <em>Périscope</em>','Un espace pour les futurs directs WarLike.')+'<div class="notice">Le direct vidéo et le chat temps réel ne sont pas encore déployés. Les vidéos publiées restent consultables dans Clips.</div>'}
+else if(view==='periscope'){if(!posts.some(p=>p.id===scopeId))scopeId=posts.length?posts[Math.floor(Math.random()*posts.length)].id:null;const discovered=posts.find(p=>p.id===scopeId);content.innerHTML=heading('Découverte','WarLike <em>Périscope</em>','Découvre une création de la communauté.')+'<div class="tile"><p>Explore une publication choisie parmi les dernières créations partagées.</p><button class="btn" id="scopeNext">◎ Découvrir une autre création</button></div>'+(discovered?card(discovered):'<div class="empty">Aucune création à découvrir pour le moment.</div>')+'<p class="note">Les diffusions en direct et leur chat restent à développer.</p>'}
 else content.innerHTML=heading('Compte','Mon <em>profil</em>','Votre identité dans ce réseau social.')+'<div class="tile"><h2>'+esc(user.display_name)+'</h2><p>@'+esc(user.username)+'</p><button class="ghost" id="logout">Déconnexion</button></div>';
 }
 async function refresh(){const r=await api('/api/posts');posts=r.posts;await render()}
@@ -34,6 +34,7 @@ $('#discover').onclick=()=>navigate('periscope');
 document.addEventListener('click',async e=>{
  const nav=e.target.closest('[data-view]');if(nav){navigate(nav.dataset.view);return}
  const modeEl=e.target.closest('[data-authmode]');if(modeEl){mode=modeEl.dataset.authmode;authForm();return}
+ if(e.target.id==='scopeNext'){const others=posts.filter(p=>p.id!==scopeId),pool=others.length?others:posts;scopeId=pool.length?pool[Math.floor(Math.random()*pool.length)].id:null;render();return}
  if(e.target.id==='logout'){try{await api('/api/auth/logout',{method:'POST'});user=null;posts=[];authForm()}catch(x){notify(x.message)}return}
  const like=e.target.closest('[data-like]');if(like){try{const id=like.dataset.like,p=posts.find(p=>p.id===id);await api('/api/posts/'+id+'/like',{method:p.liked?'DELETE':'POST'});await refresh()}catch(x){notify(x.message)}return}
  const follow=e.target.closest('[data-follow]');if(follow){try{await api('/api/users/'+follow.dataset.follow+'/follow',{method:'POST'});notify('Compte suivi.')}catch(x){notify(x.message)}return}
