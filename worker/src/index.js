@@ -1,5 +1,4 @@
-// WarLike Online Worker — isolated pilot auth until WarLike Keys SSO is integrated.
-// Passwords stay server-side as salted PBKDF2 hashes; sessions are HttpOnly cookies.
+// WarLike Online uses WarLike Server sessions through a private service binding.
 const encoder = new TextEncoder();
 const json = (value, status=200, headers={}) => new Response(JSON.stringify(value), {status, headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers}});
 const fail=(message,status=400)=>json({error:message},status);
@@ -10,36 +9,37 @@ const unb64=(str)=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
 async function digest(s){return hex(await crypto.subtle.digest('SHA-256',encoder.encode(s)))}
 async function passwordHash(password,salt){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb64(salt),iterations:310000,hash:'SHA-256'},key,256))}
 function equal(a,b){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff |= a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
-function cookie(request){return (request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('wlo_session='))?.slice(12)||null}
-function sessionCookie(request,token,age){const secure=new URL(request.url).protocol==='https:'?'; Secure':'';return 'wlo_session='+token+'; HttpOnly; SameSite=Lax; Path=/api; Max-Age='+age+secure}
-async function userFromSession(request,env){const token=cookie(request);if(!token||!/^[0-9a-f]{64}$/.test(token))return null;const h=await digest(token);return env.DB.prepare("SELECT u.id,u.username,u.display_name FROM online_sessions s JOIN online_users u ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>?").bind(h,Date.now()).first()}
+const SERVER='https://warlike-server.pages.dev',COOKIE='__Host-warlike_online',SESSION=/^[A-Za-z0-9_-]{43}$/;
+function cookie(request){const parts=(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(COOKIE+'='));if(parts.length!==1)return null;const token=parts[0].slice(COOKIE.length+1);return SESSION.test(token)?token:null}
+function sessionCookie(request,token,age){return `${COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${age}`}
+async function central(request,env,path,{method='GET',token,body}={}){if(!env.WARLIKE_SERVER)throw Error('Serveur WarLike non configuré');const headers={Origin:SERVER};let ip=request.headers.get('cf-connecting-ip');if(ip)headers['CF-Connecting-IP']=ip;if(token)headers.Cookie='__Host-warlike_session='+token;if(body)headers['Content-Type']='application/json';return env.WARLIKE_SERVER.fetch(new Request(SERVER+path,{method,headers,body,redirect:'manual'}));}
+async function userFromSession(request,env,token=cookie(request)){
+ if(!token)return null;let r=await central(request,env,'/api/warlike-auth/session',{token});if(!r.ok)return null;let data=await r.json(),u=data.user;if(!u||data.mustChange||typeof u.id!=='string'||!/^[-A-Za-z0-9_]{1,100}$/.test(u.id))return null;
+ const username='wl_'+u.id.toLowerCase().replace(/[^a-z0-9]/g,'');const display_name=String(u.name||'Membre WarLike').slice(0,60);
+ await env.DB.prepare('INSERT INTO online_users(id,username,display_name,password_salt,password_hash) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(u.id,username,display_name,'disabled','disabled').run();return {id:u.id,username,display_name,role:u.role};
+}
 const publicUser=u=>({id:u.id,username:u.username,display_name:u.display_name});
-async function bodyJSON(request){if(Number(request.headers.get('content-length')||0)>10000)throw Error('Requête trop grande');const t=await request.text();if(t.length>10000)throw Error('Requête trop grande');return JSON.parse(t)}
-function validUsername(s){return typeof s==='string'&&/^[a-zA-Z0-9_]{3,25}$/.test(s)}
+async function bodyJSON(request){if(!request.headers.get('content-type')?.startsWith('application/json'))throw Error('JSON requis');const reader=request.body?.getReader();if(!reader)throw Error('JSON requis');let chunks=[],length=0;for(;;){const {value,done}=await reader.read();if(done)break;length+=value.length;if(length>10000){await reader.cancel();throw Error('Requête trop grande')}chunks.push(value)}const bytes=new Uint8Array(length);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.length}return JSON.parse(new TextDecoder().decode(bytes))}
+async function readLimited(request,limit){if(Number(request.headers.get('content-length')||0)>limit)throw Error('Média trop volumineux');const reader=request.body?.getReader();if(!reader)throw Error('Média vide');let chunks=[],size=0;for(;;){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw Error('Média trop volumineux')}chunks.push(value)}const out=new Uint8Array(size);let off=0;for(const c of chunks){out.set(c,off);off+=c.length}return out.buffer}
 function validateText(s,max){return typeof s==='string'&&s.length<=max}
 const headers={'x-content-type-options':'nosniff','referrer-policy':'no-referrer'};
 async function route(req,env){
  const url=new URL(req.url), path=url.pathname, method=req.method;
- if(!env.DB||!env.BUCKET)return fail('Bindings DB et BUCKET manquants',503);
+ if(!env.DB||!env.BUCKET||!env.WARLIKE_SERVER)return fail('Service Online en cours de configuration',503);
  if(!['GET','HEAD','OPTIONS'].includes(method)){const origin=req.headers.get('origin');if(origin!==url.origin)return fail('Origine non autorisée',403)}
  if(path==='/api/health'&&method==='GET')return json({ok:true,service:'warlike-online'});
- if(path==='/api/auth/register'&&method==='POST'){
-  const b=await bodyJSON(req);
-  if(!validUsername(b.username)||typeof b.display_name!=='string'||b.display_name.trim().length<2||b.display_name.length>60||typeof b.password!=='string'||b.password.length<12||b.password.length>128)return fail('Identifiant, nom ou mot de passe invalide (12 caractères minimum)');
-  const salt=b64(bytes(24)),hash=await passwordHash(b.password,salt),id=crypto.randomUUID();
-  try{await env.DB.prepare('INSERT INTO online_users (id,username,display_name,password_salt,password_hash) VALUES (?,?,?,?,?)').bind(id,b.username,b.display_name.trim(),salt,hash).run()}catch{return fail('Identifiant indisponible',409)}
-  return await establish(req,env,{id,username:b.username,display_name:b.display_name.trim()},201);
- }
+ if(path==='/api/auth/register'&&method==='POST')return fail('Utilise ton compte WarLike fourni par ton administrateur.',403);
  if(path==='/api/auth/login'&&method==='POST'){
-  const b=await bodyJSON(req);if(typeof b.username!=='string'||typeof b.password!=='string')return fail('Identifiants invalides');
-  const u=await env.DB.prepare('SELECT * FROM online_users WHERE username=?').bind(b.username).first();
-  if(!u)return fail('Identifiants invalides',401);
-  const hashed=await passwordHash(b.password,u.password_salt);
-  if(!equal(hashed,u.password_hash))return fail('Identifiants invalides',401);
-  return establish(req,env,u);
+  const b=await bodyJSON(req);if(typeof b.username!=='string'||b.username.length>254||typeof b.password!=='string'||b.password.length>256)return fail('Identifiants invalides');
+  const r=await central(req,env,'/api/warlike-auth/login',{method:'POST',body:JSON.stringify({login:b.username,password:b.password})});
+  if(!r.ok)return fail(r.status===429?'Trop de tentatives. Réessaie plus tard.':r.status>=500?'Serveur WarLike indisponible.':'Identifiants invalides',r.status===429?429:r.status>=500?503:401);
+  const result=await r.json(),m=/^__Host-warlike_session=([A-Za-z0-9_-]{43});/.exec(r.headers.get('set-cookie')||'');if(!m)return fail('Session serveur invalide',502);
+  if(result.mustChange){await central(req,env,'/api/warlike-auth/logout',{method:'POST',token:m[1]}).catch(()=>{});return fail('Personnalise d’abord ton compte sur WarLike Server.',403)}
+  const u=await userFromSession(req,env,m[1]);if(!u)return fail('Compte WarLike indisponible',403);
+  return json({user:publicUser(u)},200,{'set-cookie':sessionCookie(req,m[1],28800)});
  }
  if(path==='/api/auth/logout'&&method==='POST'){
-  const token=cookie(req);if(token)await env.DB.prepare('DELETE FROM online_sessions WHERE token_hash=?').bind(await digest(token)).run();
+  const token=cookie(req);if(token)await central(req,env,'/api/warlike-auth/logout',{method:'POST',token}).catch(()=>{});
   return json({ok:true},200,{'set-cookie':sessionCookie(req,'',0)});
  }
  const user=await userFromSession(req,env);
@@ -60,7 +60,7 @@ async function route(req,env){
   if(!post)return fail('Introuvable',404);if(post.author_id!==user.id)return fail('Accès refusé',403);
   const type=req.headers.get('content-type')||'',limit=20*1024*1024;
   if(!/^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm))$/.test(type))return fail('Type média non pris en charge',415);
-  const data=await req.arrayBuffer();if(!data.byteLength||data.byteLength>limit)return fail('Média limité à 20 Mo',413);
+  let data;try{data=await readLimited(req,limit)}catch{return fail('Média limité à 20 Mo',413)}if(!data.byteLength||data.byteLength>limit)return fail('Média limité à 20 Mo',413);
   const signature=new Uint8Array(data.slice(0,16));
   const is=(...a)=>a.every((v,i)=>signature[i]===v);
   const safe=type==='image/png'?is(137,80,78,71,13,10,26,10):type==='image/jpeg'?is(255,216,255):type==='image/gif'?is(71,73,70,56):type==='image/webp'?is(82,73,70,70)&&String.fromCharCode(...signature.slice(8,12))==='WEBP':type==='video/mp4'?String.fromCharCode(...signature.slice(4,8))==='ftyp':type==='video/webm'?is(26,69,223,163):false;
@@ -102,14 +102,10 @@ async function route(req,env){
  if(follow&&method==='DELETE'){await env.DB.prepare('DELETE FROM online_follows WHERE follower_id=? AND followed_id=?').bind(user.id,follow[1]).run();return json({ok:true})}
  return fail('Route introuvable',404);
 }
-async function establish(req,env,u,status=200){
- const token=hex(bytes(32)),hash=await digest(token);
- await env.DB.prepare('INSERT INTO online_sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(hash,u.id,Date.now()+7*86400000).run();
- return json({user:publicUser(u)},status,{'set-cookie':sessionCookie(req,token,604800)});
-}
 export default {async fetch(req,env){
  const url=new URL(req.url);
  if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/media/'))return env.ASSETS.fetch(req);
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{allow:'GET,POST,PUT,DELETE,OPTIONS'}});
  try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Erreur du serveur',500)}
 }};
+
