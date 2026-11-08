@@ -1,0 +1,23 @@
+name: Validate Online staging
+on:
+  push:
+    branches: [codex/online-shared-auth]
+    paths: [.github/workflows/online-staging-test.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Check authentication and exchange on isolated staging
+        env:
+          ONLINE_TEST_URL: https://1e0ba0ef.warlike-online-validation.pages.dev
+        run: node tests/integration-http.mjs
