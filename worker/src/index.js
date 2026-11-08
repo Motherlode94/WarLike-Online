@@ -46,9 +46,9 @@ async function route(req,env){
   try{await env.DB.prepare('INSERT INTO online_assertion_nonces(nonce_hash,expires_at) VALUES(?,?)').bind(nonceHash,p.exp).run()}catch{return fail('Preuve déjà utilisée',409)}
   let linked=await env.DB.prepare('SELECT u.id,u.username,u.display_name FROM online_identities i JOIN online_users u ON u.id=i.user_id WHERE i.provider=? AND i.subject=?').bind('warlike-server',p.sub).first();
   if(!linked){
-   const id=crypto.randomUUID(),username='wl_'+(await digest(p.sub)).slice(0,20),display=typeof p.name==='string'&&p.name.trim()?p.name.trim().slice(0,60):'Membre WarLike';
+   const id=crypto.randomUUID(),username='wl_'+id.replace(/-/g,'').slice(0,25),display=typeof p.name==='string'&&p.name.trim()?p.name.trim().slice(0,60):'Membre WarLike';
    const salt=b64(bytes(24)),password_hash=await passwordHash(hex(bytes(32)),salt);
-   await env.DB.prepare('INSERT OR IGNORE INTO online_users(id,username,display_name,password_salt,password_hash) VALUES(?,?,?,?,?)').bind(id,username,display,salt,password_hash).run();
+   await env.DB.prepare('INSERT INTO online_users(id,username,display_name,password_salt,password_hash) VALUES(?,?,?,?,?)').bind(id,username,display,salt,password_hash).run();
    const u=await env.DB.prepare('SELECT id,username,display_name FROM online_users WHERE username=?').bind(username).first();
    await env.DB.prepare('INSERT OR IGNORE INTO online_identities(provider,subject,user_id) VALUES(?,?,?)').bind('warlike-server',p.sub,u.id).run();
    linked=await env.DB.prepare('SELECT u.id,u.username,u.display_name FROM online_identities i JOIN online_users u ON u.id=i.user_id WHERE i.provider=? AND i.subject=?').bind('warlike-server',p.sub).first();
