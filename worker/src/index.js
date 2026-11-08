@@ -81,9 +81,9 @@ async function route(req,env){
   const is=(...a)=>a.every((v,i)=>signature[i]===v);
   const safe=type==='image/png'?is(137,80,78,71,13,10,26,10):type==='image/jpeg'?is(255,216,255):type==='image/gif'?is(71,73,70,56):type==='image/webp'?is(82,73,70,70)&&String.fromCharCode(...signature.slice(8,12))==='WEBP':type==='video/mp4'?String.fromCharCode(...signature.slice(4,8))==='ftyp':type==='video/webm'?is(26,69,223,163):false;
   if(!safe)return fail('Signature du fichier incompatible',415);
-  const key='posts/'+user.id+'/'+post.id+'/'+crypto.randomUUID();
+  const key='posts/'+user.id+'/'+mediaMatch[1]+'/'+crypto.randomUUID();
   await env.BUCKET.put(key,data,{httpMetadata:{contentType:type}});
-  await env.DB.prepare('UPDATE online_posts SET media_key=?,media_type=? WHERE id=?').bind(key,type,post.id).run();
+  await env.DB.prepare('UPDATE online_posts SET media_key=?,media_type=? WHERE id=?').bind(key,type,mediaMatch[1]).run();
   if(post.media_key)await env.BUCKET.delete(post.media_key);
   return json({media_url:'/media/'+post.id});
  }
@@ -122,6 +122,6 @@ export default {async fetch(req,env){
  const url=new URL(req.url);
  if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/media/'))return env.ASSETS.fetch(req);
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{allow:'GET,POST,PUT,DELETE,OPTIONS'}});
- try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Diagnostic test : '+String(err?.message||'erreur').slice(0,200),500)}
+ try{return await route(req,env)}catch(err){console.error('WarLike Online API error',err);return fail('Erreur du serveur',500)}
 }};
 
