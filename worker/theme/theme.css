@@ -48,3 +48,26 @@ html[data-warlike-app="warlike-online"] :is(nav button,nav a,.nav button,.filter
 html[data-warlike-app="warlike-online"] :is(.mark,.brand-mark,.logo:not(a),.brand .mark){background:var(--wl-forest);border-color:var(--wl-sage);color:var(--wl-ivory)}
 
 html[data-warlike-app="warlike-online"] :is(.sidebar,.topbar,.post,.box,.dialog,.composer,.right-panel,.profile-card){background:var(--wl-surface);color:var(--wl-text);border-color:var(--wl-border)}
+
+/* WarLike typography v1 — offline-friendly system font fallbacks. */
+:root{--wl-font-ui:'Manrope','Plus Jakarta Sans','Inter','Segoe UI',system-ui,sans-serif;--wl-font-technical:'Inter','Noto Sans','Segoe UI',system-ui,sans-serif;--wl-font-editorial:'Playfair Display',Georgia,'Times New Roman',serif;--wl-font-cjk:'Noto Sans CJK SC','Noto Sans CJK JP','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic','Malgun Gothic',sans-serif}
+html[data-warlike-app] body{font-family:var(--wl-font-ui),var(--wl-font-cjk)}
+html[data-warlike-app] :is(button,input,select,textarea){font-family:inherit}
+html[data-warlike-app] :is(h1,h2,h3){letter-spacing:-.025em}
+
+
+/* Online: use the shared UI typography and keep the wordmark inside navigation. */
+html[data-warlike-app="warlike-online"] :is(h1,h2,h3,.heading){font-family:var(--wl-font-ui),var(--wl-font-cjk);font-style:normal;letter-spacing:-.025em}
+html[data-warlike-app="warlike-online"] .heading{font-weight:750;font-size:clamp(32px,4vw,52px);line-height:1.12;overflow-wrap:anywhere}
+html[data-warlike-app="warlike-online"] .heading em{font-family:inherit;font-style:normal;font-weight:inherit}
+html[data-warlike-app="warlike-online"] .shell{width:100%;max-width:1440px;grid-template-columns:232px minmax(0,1fr) 280px}
+html[data-warlike-app="warlike-online"] :is(.side,.right,main){min-width:0}
+html[data-warlike-app="warlike-online"] .brand{display:flex;align-items:center;gap:10px;margin:0 8px 30px;min-width:0;font-family:var(--wl-font-ui),var(--wl-font-cjk);font-size:16px;font-weight:800;letter-spacing:.08em;line-height:1.2}
+html[data-warlike-app="warlike-online"] .brand .mark{flex:0 0 24px;width:24px;font-size:24px;line-height:1;background:transparent;color:var(--wl-ivory);border:0}
+html[data-warlike-app="warlike-online"] .brand-name{min-width:0;display:flex;flex-direction:column;gap:4px}
+html[data-warlike-app="warlike-online"] .brand-product{font-size:11px;letter-spacing:.19em;font-weight:600;color:var(--wl-text-muted)}
+html[data-warlike-app="warlike-online"] .top{flex-wrap:wrap}
+html[data-warlike-app="warlike-online"] .top .eyebrow{min-width:0;overflow-wrap:anywhere;letter-spacing:.15em}
+html[data-warlike-app="warlike-online"] :is(.btn,.ghost){font-family:var(--wl-font-ui),var(--wl-font-cjk)}
+@media(max-width:1080px){html[data-warlike-app="warlike-online"] .shell{grid-template-columns:200px minmax(0,1fr)}}
+@media(max-width:650px){html[data-warlike-app="warlike-online"] .shell{display:block}html[data-warlike-app="warlike-online"] .brand{display:none}html[data-warlike-app="warlike-online"] .heading{font-size:clamp(30px,8vw,40px)}}

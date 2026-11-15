@@ -12,7 +12,8 @@ export default {
    .on('html',{element(e){e.setAttribute('data-warlike-app',theme.app)}})
    .on('meta[name="theme-color"]',{element(e){e.setAttribute('content','#17211B')}})
    .on('link[rel="stylesheet"]',{element(e){if(/warlike-(?:foundation|shell)\.css/.test(e.getAttribute('href')||''))e.remove()}})
-   .on('head',{element(e){e.append('<style data-warlike-theme-version="1.1.4">'+theme.css+'</style>',{html:true})}})
+   .on('.brand',{element(e){e.setInnerContent('<span class="mark" aria-hidden="true">◉</span><span class="brand-name">WARLIKE<span class="brand-product">ONLINE</span></span>',{html:true})}})
+   .on('head',{element(e){e.append('<style data-warlike-theme-version="1.1.5">'+theme.css+'</style>',{html:true})}})
    .transform(new Response(response.body,{status:response.status,statusText:response.statusText,headers}));
  }
 };
