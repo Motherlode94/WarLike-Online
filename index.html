@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html data-warlike-app="warlike-online" lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0d0e12"><meta name="description" content="WarLike Online — votre espace social indépendant.">
 <title>WarLike Online — Le fil vivant</title>
 <style>
@@ -17,7 +17,10 @@ input,textarea,select{background:#22232b;border:1px solid #42434d;border-radius:
 .overlay{position:fixed;inset:0;background:#050508ce;z-index:20;display:grid;place-items:center;padding:15px}.dialog{width:min(550px,100%);max-height:95vh;overflow:auto;border-radius:20px;background:#1b1c23;border:1px solid #43434c;padding:25px}.field{margin:15px 0}.field label{display:block;margin-bottom:7px;font-weight:600}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.notice{border:1px solid #744c30;background:#302019;padding:12px;border-radius:12px;color:#f5c6ad;font-size:13px}.hide{display:none!important}.small{font-size:12px}.reels{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:20px}.reel{background:#14151b;border-radius:18px;padding:10px;border:1px solid var(--line)}.reel video{width:100%;aspect-ratio:9/16;object-fit:contain;background:#000;border-radius:12px}.status{color:#c2c2cb;font-size:12px;margin-top:25px}
 @media(max-width:1080px){.shell{grid-template-columns:190px minmax(0,1fr)}.right{display:none}}
 @media(max-width:650px){.shell{display:block}.side{position:fixed;z-index:10;top:auto;bottom:0;height:63px;width:100%;padding:5px;background:#14151af2;border-right:0;border-top:1px solid var(--line)}.brand{display:none}nav{display:flex;justify-content:space-around}nav button{font-size:11px;text-align:center;padding:4px;margin:0;width:auto}nav .symbol{display:block;width:auto;font-size:20px}main{padding:18px 13px 90px}.heading{font-size:40px}.top{margin-bottom:22px}.btn{padding:10px 15px}.post-media{max-height:460px}}
-</style></head><body>
+</style>
+<link rel="stylesheet" href="./design-system/warlike-foundation.css?v=1.1">
+<link rel="stylesheet" href="./design-system/warlike-shell.css?v=1.1">
+</head><body>
 <div class="shell">
 <aside class="side"><div class="brand"><span class="mark">◉</span> WARLIKE·ONLINE</div><nav id="nav">
 <button data-view="feed" class="active"><span class="symbol">⌂</span>Le fil</button>
