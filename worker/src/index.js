@@ -62,10 +62,24 @@ async function route(req,env){
  if(path==='/api/auth/me'&&method==='GET')return json({user:user?publicUser(user):null});
  if(path==='/api/posts'&&method==='GET'){
   if(!user)return fail('Connexion nécessaire',401);
-  const rows=await env.DB.prepare(`SELECT p.id,p.body,p.media_key,p.media_type,p.created_at,u.id AS author_id,u.username,u.display_name, (SELECT COUNT(*) FROM online_likes l WHERE l.post_id=p.id) AS likes, EXISTS(SELECT 1 FROM online_likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked FROM online_posts p JOIN online_users u ON u.id=p.author_id ORDER BY p.created_at DESC,p.id DESC LIMIT 50`).bind(user.id).all();
+  const rows=await env.DB.prepare(`SELECT p.id,p.body,p.media_key,p.media_type,p.created_at,u.id AS author_id,u.username,u.display_name, (SELECT COUNT(*) FROM online_likes l WHERE l.post_id=p.id) AS likes, EXISTS(SELECT 1 FROM online_likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked, EXISTS(SELECT 1 FROM online_bookmarks b WHERE b.post_id=p.id AND b.user_id=?) AS saved FROM online_posts p JOIN online_users u ON u.id=p.author_id ORDER BY p.created_at DESC,p.id DESC LIMIT 50`).bind(user.id,user.id).all();
   return json({posts:rows.results.map(p=>({...p,media_url:p.media_key?'/media/'+p.id:null,media_key:undefined}))});
  }
  if(!user)return fail('Connexion nécessaire',401);
+ if(path==='/api/bookmarks'&&method==='GET'){
+  const rows=await env.DB.prepare(`SELECT p.id,p.body,p.created_at,u.username,u.display_name,p.media_type FROM online_bookmarks b JOIN online_posts p ON p.id=b.post_id JOIN online_users u ON u.id=p.author_id WHERE b.user_id=? ORDER BY b.created_at DESC,b.post_id DESC LIMIT 100`).bind(user.id).all();
+  return json({posts:rows.results.map(p=>({...p,media_url:p.media_type?'/media/'+p.id:null}))});
+ }
+ const bookmark=path.match(/^\\/api\\/posts\\/([a-f0-9-]{36})\\/bookmark$/);
+ if(bookmark&&method==='POST'){
+  const exists=await env.DB.prepare('SELECT id FROM online_posts WHERE id=?').bind(bookmark[1]).first();if(!exists)return fail('Publication introuvable',404);
+  await env.DB.prepare('INSERT OR IGNORE INTO online_bookmarks(user_id,post_id) VALUES(?,?)').bind(user.id,bookmark[1]).run();
+  return json({saved:true});
+ }
+ if(bookmark&&method==='DELETE'){
+  await env.DB.prepare('DELETE FROM online_bookmarks WHERE user_id=? AND post_id=?').bind(user.id,bookmark[1]).run();
+  return json({saved:false});
+ }
  if(path==='/api/posts'&&method==='POST'){
   const b=await bodyJSON(req);if(!validateText(b.body,2000))return fail('Message invalide');
   const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO online_posts(id,author_id,body) VALUES(?,?,?)').bind(id,user.id,b.body).run();return json({id},201);
@@ -75,7 +89,7 @@ async function route(req,env){
   const post=await env.DB.prepare('SELECT id,author_id,media_key FROM online_posts WHERE id=?').bind(deleteMatch[1]).first();
   if(!post)return fail('Publication introuvable',404);if(post.author_id!==user.id&&user.role!=='owner')return fail('Accès refusé',403);
   if(post.media_key)await env.BUCKET.delete(post.media_key);
-  await env.DB.batch([env.DB.prepare('DELETE FROM online_comments WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_likes WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_posts WHERE id=?').bind(post.id)]);
+  await env.DB.batch([env.DB.prepare('DELETE FROM online_comments WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_likes WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_bookmarks WHERE post_id=?').bind(post.id),env.DB.prepare('DELETE FROM online_posts WHERE id=?').bind(post.id)]);
   return json({ok:true});
  }
  const mediaMatch=path.match(/^\/api\/posts\/([a-f0-9-]{36})\/media$/);
