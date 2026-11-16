@@ -1,5 +1,5 @@
 // Served by /projects.js through the themed Worker, no external dependencies.
-export const PROJECTS_CLIENT = String.raw\`(()=>{'use strict';
+export const PROJECTS_CLIENT = String.raw`(()=>{'use strict';
 const $=id=>document.getElementById(id),message=s=>$('cloud-status').textContent=s;
 let current=null,projects=[];
 async function request(path,{method='GET',body,bytes,type,revision}={}){
@@ -61,8 +61,8 @@ $('cloud-download').onclick=()=>{
  window.open('/api/projects/'+current.id+'/audio','_blank','noopener');
 };
 session();
-})();\`;
-export const PROJECTS_PANEL = \`<section class="panel" id="cloud-panel" style="margin-top:24px">
+})();`;
+export const PROJECTS_PANEL = `<section class="panel" id="cloud-panel" style="margin-top:24px">
 <h2>3. Mes projets privés · Cloudflare</h2>
 <p class="notice">Connexion WarLike Server nécessaire. Le texte est sauvegardé dans D1 uniquement sur action explicite. L'envoi de l'audio vers R2 est facultatif.</p>
 <p id="cloud-user" class="notice">Vérification de la session…</p>
@@ -73,4 +73,4 @@ export const PROJECTS_PANEL = \`<section class="panel" id="cloud-panel" style="m
 <label for="cloud-list">Projets sauvegardés</label><select id="cloud-list"></select>
 <div class="row"><button id="cloud-open">Ouvrir</button><button id="cloud-delete">Supprimer</button></div>
 <div class="row"><button id="cloud-upload">Conserver cet audio dans R2 (20 Mo max.)</button><button id="cloud-download">Récupérer l'audio</button></div>
-</div><p id="cloud-status" class="status" role="status"></p></section>\`;
+</div><p id="cloud-status" class="status" role="status"></p></section>`;
