@@ -1,0 +1,33 @@
+name: Verify Online bookmarks and Transcribe projects
+on:
+  push:
+    paths:
+      - 'worker/**'
+      - 'public/**'
+      - 'tools/transcribe/**'
+      - '.github/workflows/storage-verification.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax-check production modules
+        run: |
+          node --check worker/src/index.js
+          node --check public/app.js
+          node --check tools/transcribe/projects/api.js
+          node --check tools/transcribe/projects/ui.js
+          node --check tools/transcribe/runtime/worker.js
+      - name: Test Online persistence and auth
+        run: node --test worker/tests/auth.test.mjs
+      - name: Test Transcribe D1/R2 storage and isolation
+        run: node --test tools/transcribe/tests/projects.test.mjs
