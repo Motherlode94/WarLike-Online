@@ -70,7 +70,7 @@ async function route(req,env){
   const rows=await env.DB.prepare(`SELECT p.id,p.body,p.created_at,u.username,u.display_name,p.media_type FROM online_bookmarks b JOIN online_posts p ON p.id=b.post_id JOIN online_users u ON u.id=p.author_id WHERE b.user_id=? ORDER BY b.created_at DESC,b.post_id DESC LIMIT 100`).bind(user.id).all();
   return json({posts:rows.results.map(p=>({...p,media_url:p.media_type?'/media/'+p.id:null}))});
  }
- const bookmark=path.match(/^\\/api\\/posts\\/([a-f0-9-]{36})\\/bookmark$/);
+ const bookmark=path.match(/^\/api\/posts\/([a-f0-9-]{36})\/bookmark$/);
  if(bookmark&&method==='POST'){
   const exists=await env.DB.prepare('SELECT id FROM online_posts WHERE id=?').bind(bookmark[1]).first();if(!exists)return fail('Publication introuvable',404);
   await env.DB.prepare('INSERT OR IGNORE INTO online_bookmarks(user_id,post_id) VALUES(?,?)').bind(user.id,bookmark[1]).run();
